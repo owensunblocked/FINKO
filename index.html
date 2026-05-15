@@ -1,20 +1,40 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Universe Explorer</title>
+<title>Universe Explorer MAX</title>
 <style>
 body { margin:0; overflow:hidden; background:black; font-family:Arial; }
-#ui { position:absolute; top:10px; left:10px; color:white; }
+
+/* LEFT UI */
+#ui {
+  position:absolute;
+  top:10px;
+  left:10px;
+  color:white;
+}
+
+/* RIGHT VERSION LABEL */
+#version {
+  position:absolute;
+  top:10px;
+  right:10px;
+  color:white;
+  font-size:14px;
+  opacity:0.8;
+}
 </style>
 </head>
 <body>
 
 <div id="ui">
-<b>Universe Explorer</b><br>
+<b>Universe Explorer MAX</b><br>
 WASD = Move | Shift = Boost<br>
-Hold Click = Look<br>
-Click = Travel<br>
+Click = Lock Mouse / Look Around<br>
+ESC = Unlock Mouse<br>
+Click Planet = Travel<br>
 </div>
+
+<div id="version">V1</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
@@ -25,163 +45,130 @@ let scene = new THREE.Scene();
 let camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 100000);
 camera.position.set(0,0,800);
 
-let renderer = new THREE.WebGLRenderer({ antialias:false });
+let renderer = new THREE.WebGLRenderer({ antialias:false, powerPreference:"low-power" });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(1);
 document.body.appendChild(renderer.domElement);
 
 scene.add(new THREE.AmbientLight(0x404040));
 
-// ===== TEXTURE LOADER =====
+// ===== TEXTURES =====
 let loader = new THREE.TextureLoader();
+function tex(u){ return loader.load(u); }
 
-// (LIGHTWEIGHT TEXTURES)
-const TEX = {
-  sun: loader.load("https://threejs.org/examples/textures/planets/sun.jpg"),
-  mercury: loader.load("https://threejs.org/examples/textures/planets/mercury.jpg"),
-  venus: loader.load("https://threejs.org/examples/textures/planets/venus.jpg"),
-  earth: loader.load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg"),
-  moon: loader.load("https://threejs.org/examples/textures/planets/moon_1024.jpg"),
-  mars: loader.load("https://threejs.org/examples/textures/planets/mars_1024.jpg"),
-  jupiter: loader.load("https://threejs.org/examples/textures/planets/jupiter.jpg"),
-  saturn: loader.load("https://threejs.org/examples/textures/planets/saturn.jpg"),
-  saturnRing: loader.load("https://threejs.org/examples/textures/planets/saturnringcolor.jpg"),
-  uranus: loader.load("https://threejs.org/examples/textures/planets/uranus.jpg"),
-  neptune: loader.load("https://threejs.org/examples/textures/planets/neptune.jpg")
+const T = {
+  sun: tex("https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/sun.jpg"),
+  earth: tex("https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/earth_atmos_2048.jpg"),
+  moon: tex("https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/moon_1024.jpg"),
+  mars: tex("https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/mars_1024.jpg"),
+  jupiter: tex("https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/jupiter.jpg"),
+  saturn: tex("https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/saturn.jpg"),
+  ring: tex("https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/saturnringcolor.jpg"),
+  mercury: tex("https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/mercury.jpg"),
+  venus: tex("https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/venus.jpg"),
+  uranus: tex("https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/uranus.jpg"),
+  neptune: tex("https://cdn.jsdelivr.net/gh/mrdoob/three.js@r128/examples/textures/planets/neptune.jpg")
 };
 
-// ===== STARFIELD =====
-let starGeo = new THREE.BufferGeometry();
-let starCount = 2000;
-let positions = new Float32Array(starCount*3);
-
-for(let i=0;i<starCount;i++){
-  positions[i*3]=(Math.random()-0.5)*10000;
-  positions[i*3+1]=(Math.random()-0.5)*10000;
-  positions[i*3+2]=(Math.random()-0.5)*10000;
+// ===== STARS =====
+let geo = new THREE.BufferGeometry();
+let arr = new Float32Array(1500*3);
+for(let i=0;i<1500;i++){
+  arr[i*3]=(Math.random()-0.5)*10000;
+  arr[i*3+1]=(Math.random()-0.5)*10000;
+  arr[i*3+2]=(Math.random()-0.5)*10000;
 }
-starGeo.setAttribute("position", new THREE.BufferAttribute(positions,3));
-
-let stars = new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xffffff,size:1}));
-scene.add(stars);
+geo.setAttribute("position", new THREE.BufferAttribute(arr,3));
+scene.add(new THREE.Points(geo,new THREE.PointsMaterial({color:0xffffff,size:1})));
 
 // ===== SOLAR SYSTEM =====
-function createSolarSystem(){
-  let system = new THREE.Group();
-  scene.add(system);
+let system = new THREE.Group();
+scene.add(system);
+let objects = {};
 
-  let objects = {};
+function make(name,size,dist,map,pop){
+  let orbit = new THREE.Group();
+  system.add(orbit);
 
-  function make(name,size,dist,map,pop){
-    let orbit = new THREE.Group();
-    system.add(orbit);
-
-    let mesh = new THREE.Mesh(
-      new THREE.SphereGeometry(size,32,32),
-      new THREE.MeshStandardMaterial({map})
-    );
-
-    mesh.position.x = dist;
-    mesh.userData = {name,population:pop};
-
-    orbit.add(mesh);
-    objects[name] = mesh;
-
-    return orbit;
-  }
-
-  // SUN
-  let sun = new THREE.Mesh(
-    new THREE.SphereGeometry(40,32,32),
-    new THREE.MeshBasicMaterial({map:TEX.sun})
+  let mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(size,32,32),
+    new THREE.MeshStandardMaterial({map})
   );
-  sun.userData = {name:"Sun",population:0};
-  system.add(sun);
 
-  let light = new THREE.PointLight(0xffffff,3);
-  system.add(light);
+  mesh.position.x = dist;
+  mesh.userData = {name,population:pop};
+  orbit.add(mesh);
+  objects[name]=mesh;
 
-  // PLANETS
-  let mercury = make("Mercury",5,70,TEX.mercury,0);
-  let venus   = make("Venus",9,100,TEX.venus,0);
-  let earthO  = make("Earth",12,140,TEX.earth,8000000000);
-  let mars    = make("Mars",8,180,TEX.mars,0);
-  let jupiter = make("Jupiter",25,260,TEX.jupiter,0);
-  let saturn  = make("Saturn",22,340,TEX.saturn,0);
-  let uranus  = make("Uranus",18,420,TEX.uranus,0);
-  let neptune = make("Neptune",18,500,TEX.neptune,0);
-
-  // MOON
-  let moonOrbit = new THREE.Group();
-  objects["Earth"].add(moonOrbit);
-
-  let moon = new THREE.Mesh(
-    new THREE.SphereGeometry(4,16,16),
-    new THREE.MeshStandardMaterial({map:TEX.moon})
-  );
-  moon.position.x = 25;
-  moon.userData = {name:"Moon",population:0};
-  moonOrbit.add(moon);
-  objects["Moon"] = moon;
-
-  // SATURN RINGS
-  let ring = new THREE.Mesh(
-    new THREE.RingGeometry(30,45,32),
-    new THREE.MeshBasicMaterial({
-      map:TEX.saturnRing,
-      side:THREE.DoubleSide,
-      transparent:true
-    })
-  );
-  ring.rotation.x = Math.PI/2;
-  objects["Saturn"].add(ring);
-
-  system.userData = {
-    objects,
-    orbits:[mercury,venus,earthO,mars,jupiter,saturn,uranus,neptune],
-    moonOrbit
-  };
-
-  return system;
+  return orbit;
 }
 
-let solarSystem = createSolarSystem();
+let sun = new THREE.Mesh(
+  new THREE.SphereGeometry(40,32,32),
+  new THREE.MeshBasicMaterial({map:T.sun})
+);
+system.add(sun);
+system.add(new THREE.PointLight(0xffffff,3));
 
-// ===== CONTROLS =====
-let keys = {};
-document.addEventListener("keydown",e=>keys[e.key]=true);
-document.addEventListener("keyup",e=>keys[e.key]=false);
+let mercury = make("Mercury",5,70,T.mercury,0);
+let venus   = make("Venus",9,100,T.venus,0);
+let earthO  = make("Earth",12,140,T.earth,8000000000);
+let mars    = make("Mars",8,180,T.mars,0);
+let jupiter = make("Jupiter",25,260,T.jupiter,0);
+let saturn  = make("Saturn",22,340,T.saturn,0);
+let uranus  = make("Uranus",18,420,T.uranus,0);
+let neptune = make("Neptune",18,500,T.neptune,0);
 
-// ===== MOUSE LOOK =====
-let dragging=false, yaw=0, pitch=0;
+// MOON
+let moonOrbit = new THREE.Group();
+objects["Earth"].add(moonOrbit);
 
-document.addEventListener("mousedown",()=>dragging=true);
-document.addEventListener("mouseup",()=>dragging=false);
+let moon = new THREE.Mesh(
+  new THREE.SphereGeometry(4,16,16),
+  new THREE.MeshStandardMaterial({map:T.moon})
+);
+moon.position.x = 25;
+moon.userData={name:"Moon",population:0};
+moonOrbit.add(moon);
+objects["Moon"]=moon;
 
-document.addEventListener("mousemove",e=>{
-  if(dragging){
-    yaw -= e.movementX*0.002;
-    pitch -= e.movementY*0.002;
-    pitch=Math.max(-Math.PI/2,Math.min(Math.PI/2,pitch));
-    camera.rotation.set(pitch,yaw,0);
+// SATURN RINGS
+let ring = new THREE.Mesh(
+  new THREE.RingGeometry(30,45,32),
+  new THREE.MeshBasicMaterial({map:T.ring, side:THREE.DoubleSide, transparent:true})
+);
+ring.rotation.x=Math.PI/2;
+objects["Saturn"].add(ring);
+
+// ===== POINTER LOCK CAMERA =====
+let yaw=0, pitch=0;
+
+document.body.addEventListener("click",()=>{
+  document.body.requestPointerLock();
+});
+
+document.addEventListener("mousemove",(e)=>{
+  if(document.pointerLockElement === document.body){
+    yaw -= e.movementX * 0.002;
+    pitch -= e.movementY * 0.002;
+    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+    camera.rotation.set(pitch, yaw, 0);
   }
 });
 
+// ===== CONTROLS =====
+let keys={};
+document.addEventListener("keydown",e=>keys[e.key]=true);
+document.addEventListener("keyup",e=>keys[e.key]=false);
+
 // ===== CLICK TRAVEL =====
-let raycaster=new THREE.Raycaster();
-let mouse=new THREE.Vector2();
-let target=null;
+let ray=new THREE.Raycaster(),mouse=new THREE.Vector2(),target=null;
 
-window.addEventListener("click",e=>{
-  if(dragging) return;
+window.addEventListener("mousedown",()=>{
+  if(document.pointerLockElement !== document.body) return;
 
-  mouse.x=(e.clientX/window.innerWidth)*2-1;
-  mouse.y=-(e.clientY/window.innerHeight)*2+1;
-
-  raycaster.setFromCamera(mouse,camera);
-
-  let objs=Object.values(solarSystem.userData.objects);
-  let hit=raycaster.intersectObjects(objs,true);
+  ray.setFromCamera({x:0,y:0},camera);
+  let hit=ray.intersectObjects(Object.values(objects),true);
 
   if(hit.length){
     let p=new THREE.Vector3();
@@ -189,12 +176,6 @@ window.addEventListener("click",e=>{
     target=p.add(new THREE.Vector3(0,0,80));
   }
 });
-
-// ===== LABEL =====
-let label=document.createElement("div");
-label.style.position="absolute";
-label.style.color="white";
-document.body.appendChild(label);
 
 // ===== LOOP =====
 function animate(){
@@ -207,35 +188,17 @@ if(keys["s"]) camera.translateZ(speed);
 if(keys["a"]) camera.translateX(-speed);
 if(keys["d"]) camera.translateX(speed);
 
-// SMOOTH TRAVEL
+// TRAVEL
 if(target){
   camera.position.lerp(target,0.05);
   if(camera.position.distanceTo(target)<1) target=null;
 }
 
 // ORBITS
-solarSystem.userData.orbits.forEach((o,i)=>{
-  o.rotation.y += 0.002 + i*0.0005;
+[mercury,venus,earthO,mars,jupiter,saturn,uranus,neptune].forEach((o,i)=>{
+  o.rotation.y+=0.002+i*0.0005;
 });
-solarSystem.userData.moonOrbit.rotation.y += 0.01;
-
-// LABEL (closest)
-let closest=null,min=Infinity;
-Object.values(solarSystem.userData.objects).forEach(o=>{
-  let pos=o.getWorldPosition(new THREE.Vector3());
-  let d=camera.position.distanceTo(pos);
-  if(d<min){min=d;closest=o;}
-});
-
-if(closest){
-  let v=closest.getWorldPosition(new THREE.Vector3()).project(camera);
-  label.style.left=((v.x*0.5+0.5)*innerWidth)+"px";
-  label.style.top=(( -v.y*0.5+0.5)*innerHeight)+"px";
-
-  label.innerHTML=
-    closest.userData.name+"<br>Population: "+
-    (closest.userData.population||0).toLocaleString();
-}
+moonOrbit.rotation.y+=0.01;
 
 renderer.render(scene,camera);
 }
