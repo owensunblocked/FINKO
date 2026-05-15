@@ -4,12 +4,7 @@
 <title>Universe Explorer</title>
 <style>
 body { margin:0; overflow:hidden; background:black; font-family:Arial; }
-#ui {
-  position:absolute;
-  top:10px;
-  left:10px;
-  color:white;
-}
+#ui { position:absolute; top:10px; left:10px; color:white; }
 </style>
 </head>
 <body>
@@ -17,9 +12,8 @@ body { margin:0; overflow:hidden; background:black; font-family:Arial; }
 <div id="ui">
 <b>Universe Explorer</b><br>
 WASD = Move | Shift = Boost<br>
-Scroll = Zoom<br>
-Click = Travel / Investigate<br>
-Auto Save ✔
+Hold Click = Look<br>
+Click = Travel<br>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -31,17 +25,34 @@ let scene = new THREE.Scene();
 let camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 100000);
 camera.position.set(0,0,800);
 
-let renderer = new THREE.WebGLRenderer({ antialias:false, powerPreference:"low-power" });
+let renderer = new THREE.WebGLRenderer({ antialias:false });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(1);
 document.body.appendChild(renderer.domElement);
 
-// ===== LIGHT =====
 scene.add(new THREE.AmbientLight(0x404040));
+
+// ===== TEXTURE LOADER =====
+let loader = new THREE.TextureLoader();
+
+// (LIGHTWEIGHT TEXTURES)
+const TEX = {
+  sun: loader.load("https://threejs.org/examples/textures/planets/sun.jpg"),
+  mercury: loader.load("https://threejs.org/examples/textures/planets/mercury.jpg"),
+  venus: loader.load("https://threejs.org/examples/textures/planets/venus.jpg"),
+  earth: loader.load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg"),
+  moon: loader.load("https://threejs.org/examples/textures/planets/moon_1024.jpg"),
+  mars: loader.load("https://threejs.org/examples/textures/planets/mars_1024.jpg"),
+  jupiter: loader.load("https://threejs.org/examples/textures/planets/jupiter.jpg"),
+  saturn: loader.load("https://threejs.org/examples/textures/planets/saturn.jpg"),
+  saturnRing: loader.load("https://threejs.org/examples/textures/planets/saturnringcolor.jpg"),
+  uranus: loader.load("https://threejs.org/examples/textures/planets/uranus.jpg"),
+  neptune: loader.load("https://threejs.org/examples/textures/planets/neptune.jpg")
+};
 
 // ===== STARFIELD =====
 let starGeo = new THREE.BufferGeometry();
-let starCount = 2500;
+let starCount = 2000;
 let positions = new Float32Array(starCount*3);
 
 for(let i=0;i<starCount;i++){
@@ -54,60 +65,20 @@ starGeo.setAttribute("position", new THREE.BufferAttribute(positions,3));
 let stars = new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xffffff,size:1}));
 scene.add(stars);
 
-// ===== RANDOM PLANETS =====
-let planets = [];
-
-function createPlanet(pos){
-  let mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(10,16,16),
-    new THREE.MeshStandardMaterial({
-      color:new THREE.Color(Math.random(),Math.random(),Math.random())
-    })
-  );
-
-  mesh.position.copy(pos);
-  mesh.userData = {
-    name:"Planet",
-    population: Math.floor(Math.random()*1000000000)
-  };
-
-  scene.add(mesh);
-  planets.push(mesh);
-}
-
-for(let i=0;i<15;i++){
-  createPlanet(new THREE.Vector3(
-    Math.random()*3000-1500,
-    Math.random()*3000-1500,
-    Math.random()*3000-1500
-  ));
-}
-
-// ===== FULL SOLAR SYSTEM =====
-function createSolarSystem(pos){
+// ===== SOLAR SYSTEM =====
+function createSolarSystem(){
   let system = new THREE.Group();
-  system.position.copy(pos);
   scene.add(system);
 
   let objects = {};
 
-  let sun = new THREE.Mesh(
-    new THREE.SphereGeometry(40,32,32),
-    new THREE.MeshBasicMaterial({color:0xffcc00})
-  );
-  sun.userData = {name:"Sun", population:0};
-  system.add(sun);
-
-  let light = new THREE.PointLight(0xffffff,3);
-  system.add(light);
-
-  function createPlanet(name,size,dist,color,pop){
+  function make(name,size,dist,map,pop){
     let orbit = new THREE.Group();
     system.add(orbit);
 
     let mesh = new THREE.Mesh(
       new THREE.SphereGeometry(size,32,32),
-      new THREE.MeshStandardMaterial({color})
+      new THREE.MeshStandardMaterial({map})
     );
 
     mesh.position.x = dist;
@@ -119,32 +90,48 @@ function createSolarSystem(pos){
     return orbit;
   }
 
-  let mercury = createPlanet("Mercury",5,70,0xaaaaaa,0);
-  let venus   = createPlanet("Venus",9,100,0xffcc88,0);
-  let earthO  = createPlanet("Earth",12,140,0x2266ff,8000000000);
-  let mars    = createPlanet("Mars",8,180,0xff5533,0);
-  let jupiter = createPlanet("Jupiter",25,260,0xffaa88,0);
-  let saturn  = createPlanet("Saturn",22,340,0xffddaa,0);
-  let uranus  = createPlanet("Uranus",18,420,0x66ccff,0);
-  let neptune = createPlanet("Neptune",18,500,0x3366ff,0);
+  // SUN
+  let sun = new THREE.Mesh(
+    new THREE.SphereGeometry(40,32,32),
+    new THREE.MeshBasicMaterial({map:TEX.sun})
+  );
+  sun.userData = {name:"Sun",population:0};
+  system.add(sun);
 
-  // Moon
+  let light = new THREE.PointLight(0xffffff,3);
+  system.add(light);
+
+  // PLANETS
+  let mercury = make("Mercury",5,70,TEX.mercury,0);
+  let venus   = make("Venus",9,100,TEX.venus,0);
+  let earthO  = make("Earth",12,140,TEX.earth,8000000000);
+  let mars    = make("Mars",8,180,TEX.mars,0);
+  let jupiter = make("Jupiter",25,260,TEX.jupiter,0);
+  let saturn  = make("Saturn",22,340,TEX.saturn,0);
+  let uranus  = make("Uranus",18,420,TEX.uranus,0);
+  let neptune = make("Neptune",18,500,TEX.neptune,0);
+
+  // MOON
   let moonOrbit = new THREE.Group();
   objects["Earth"].add(moonOrbit);
 
   let moon = new THREE.Mesh(
     new THREE.SphereGeometry(4,16,16),
-    new THREE.MeshStandardMaterial({color:0xaaaaaa})
+    new THREE.MeshStandardMaterial({map:TEX.moon})
   );
   moon.position.x = 25;
-  moon.userData = {name:"Moon", population:0};
+  moon.userData = {name:"Moon",population:0};
   moonOrbit.add(moon);
   objects["Moon"] = moon;
 
-  // Saturn Rings
+  // SATURN RINGS
   let ring = new THREE.Mesh(
     new THREE.RingGeometry(30,45,32),
-    new THREE.MeshBasicMaterial({color:0xddddaa, side:THREE.DoubleSide})
+    new THREE.MeshBasicMaterial({
+      map:TEX.saturnRing,
+      side:THREE.DoubleSide,
+      transparent:true
+    })
   );
   ring.rotation.x = Math.PI/2;
   objects["Saturn"].add(ring);
@@ -158,49 +145,53 @@ function createSolarSystem(pos){
   return system;
 }
 
-let solarSystem = createSolarSystem(new THREE.Vector3(0,0,0));
+let solarSystem = createSolarSystem();
 
 // ===== CONTROLS =====
 let keys = {};
 document.addEventListener("keydown",e=>keys[e.key]=true);
 document.addEventListener("keyup",e=>keys[e.key]=false);
 
-// ===== CLICK TELEPORT =====
-let raycaster = new THREE.Raycaster();
-let mouse = new THREE.Vector2();
-let targetPosition = null;
+// ===== MOUSE LOOK =====
+let dragging=false, yaw=0, pitch=0;
 
-window.addEventListener("click",(event)=>{
-  mouse.x = (event.clientX/window.innerWidth)*2-1;
-  mouse.y = -(event.clientY/window.innerHeight)*2+1;
+document.addEventListener("mousedown",()=>dragging=true);
+document.addEventListener("mouseup",()=>dragging=false);
 
-  raycaster.setFromCamera(mouse,camera);
-
-  let objects = [...planets, ...Object.values(solarSystem.userData.objects)];
-  let intersects = raycaster.intersectObjects(objects,true);
-
-  if(intersects.length>0){
-    let obj = intersects[0].object;
-    let pos = new THREE.Vector3();
-    obj.getWorldPosition(pos);
-
-    targetPosition = pos.clone().add(new THREE.Vector3(0,0,80));
+document.addEventListener("mousemove",e=>{
+  if(dragging){
+    yaw -= e.movementX*0.002;
+    pitch -= e.movementY*0.002;
+    pitch=Math.max(-Math.PI/2,Math.min(Math.PI/2,pitch));
+    camera.rotation.set(pitch,yaw,0);
   }
 });
 
-// ===== SAVE =====
-function save(){
-  localStorage.setItem("spaceSave", JSON.stringify(camera.position));
-}
-function load(){
-  let s = JSON.parse(localStorage.getItem("spaceSave"));
-  if(s) camera.position.set(s.x,s.y,s.z);
-}
-load();
-setInterval(save,5000);
+// ===== CLICK TRAVEL =====
+let raycaster=new THREE.Raycaster();
+let mouse=new THREE.Vector2();
+let target=null;
+
+window.addEventListener("click",e=>{
+  if(dragging) return;
+
+  mouse.x=(e.clientX/window.innerWidth)*2-1;
+  mouse.y=-(e.clientY/window.innerHeight)*2+1;
+
+  raycaster.setFromCamera(mouse,camera);
+
+  let objs=Object.values(solarSystem.userData.objects);
+  let hit=raycaster.intersectObjects(objs,true);
+
+  if(hit.length){
+    let p=new THREE.Vector3();
+    hit[0].object.getWorldPosition(p);
+    target=p.add(new THREE.Vector3(0,0,80));
+  }
+});
 
 // ===== LABEL =====
-let label = document.createElement("div");
+let label=document.createElement("div");
 label.style.position="absolute";
 label.style.color="white";
 document.body.appendChild(label);
@@ -209,20 +200,17 @@ document.body.appendChild(label);
 function animate(){
 requestAnimationFrame(animate);
 
-// MOVEMENT
-let speed = keys["Shift"] ? 20 : 5;
-
+// MOVE
+let speed=keys["Shift"]?20:5;
 if(keys["w"]) camera.translateZ(-speed);
 if(keys["s"]) camera.translateZ(speed);
 if(keys["a"]) camera.translateX(-speed);
 if(keys["d"]) camera.translateX(speed);
 
 // SMOOTH TRAVEL
-if(targetPosition){
-  camera.position.lerp(targetPosition,0.05);
-  if(camera.position.distanceTo(targetPosition)<1){
-    targetPosition=null;
-  }
+if(target){
+  camera.position.lerp(target,0.05);
+  if(camera.position.distanceTo(target)<1) target=null;
 }
 
 // ORBITS
@@ -231,40 +219,26 @@ solarSystem.userData.orbits.forEach((o,i)=>{
 });
 solarSystem.userData.moonOrbit.rotation.y += 0.01;
 
-// FIND CLOSEST OBJECT
-let closest=null;
-let minDist=Infinity;
-
-let allObjects = [...planets, ...Object.values(solarSystem.userData.objects)];
-
-allObjects.forEach(obj=>{
-  let pos = obj.getWorldPosition(new THREE.Vector3());
-  let d = camera.position.distanceTo(pos);
-
-  if(d<minDist){
-    minDist=d;
-    closest=obj;
-  }
+// LABEL (closest)
+let closest=null,min=Infinity;
+Object.values(solarSystem.userData.objects).forEach(o=>{
+  let pos=o.getWorldPosition(new THREE.Vector3());
+  let d=camera.position.distanceTo(pos);
+  if(d<min){min=d;closest=o;}
 });
 
-// LABEL
 if(closest){
-  let pos = closest.getWorldPosition(new THREE.Vector3());
-  let v = pos.project(camera);
-
+  let v=closest.getWorldPosition(new THREE.Vector3()).project(camera);
   label.style.left=((v.x*0.5+0.5)*innerWidth)+"px";
   label.style.top=(( -v.y*0.5+0.5)*innerHeight)+"px";
 
-  label.innerHTML =
-    (closest.userData.name || "Planet") +
-    "<br>Population: " +
-    (closest.userData.population || 0).toLocaleString();
+  label.innerHTML=
+    closest.userData.name+"<br>Population: "+
+    (closest.userData.population||0).toLocaleString();
 }
 
-// RENDER
 renderer.render(scene,camera);
 }
-
 animate();
 
 // RESIZE
