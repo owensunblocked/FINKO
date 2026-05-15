@@ -18,22 +18,20 @@ body { margin:0; overflow:hidden; background:black; font-family:Arial; }
 <b>Universe Explorer</b><br>
 WASD = Move | Shift = Boost<br>
 Scroll = Zoom<br>
+Click = Travel / Investigate<br>
 Auto Save ✔
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
-// ===== SCENE =====
+// ===== SETUP =====
 let scene = new THREE.Scene();
 
 let camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 100000);
 camera.position.set(0,0,800);
 
-let renderer = new THREE.WebGLRenderer({
-  antialias:false,
-  powerPreference:"low-power"
-});
+let renderer = new THREE.WebGLRenderer({ antialias:false, powerPreference:"low-power" });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(1);
 document.body.appendChild(renderer.domElement);
@@ -47,54 +45,34 @@ let starCount = 2500;
 let positions = new Float32Array(starCount*3);
 
 for(let i=0;i<starCount;i++){
-  positions[i*3] = (Math.random()-0.5)*10000;
-  positions[i*3+1] = (Math.random()-0.5)*10000;
-  positions[i*3+2] = (Math.random()-0.5)*10000;
+  positions[i*3]=(Math.random()-0.5)*10000;
+  positions[i*3+1]=(Math.random()-0.5)*10000;
+  positions[i*3+2]=(Math.random()-0.5)*10000;
 }
-
 starGeo.setAttribute("position", new THREE.BufferAttribute(positions,3));
-let stars = new THREE.Points(starGeo, new THREE.PointsMaterial({color:0xffffff,size:1}));
+
+let stars = new THREE.Points(starGeo,new THREE.PointsMaterial({color:0xffffff,size:1}));
 scene.add(stars);
 
 // ===== RANDOM PLANETS =====
 let planets = [];
 
 function createPlanet(pos){
-  let group = new THREE.Group();
-
-  let low = new THREE.Mesh(
-    new THREE.SphereGeometry(10,8,8),
-    new THREE.MeshBasicMaterial({color:0x4444ff})
-  );
-
-  let high = new THREE.Mesh(
-    new THREE.SphereGeometry(10,32,32),
+  let mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(10,16,16),
     new THREE.MeshStandardMaterial({
-      color:new THREE.Color(Math.random(),Math.random(),Math.random()),
-      roughness:1
+      color:new THREE.Color(Math.random(),Math.random(),Math.random())
     })
   );
 
-  let atm = new THREE.Mesh(
-    new THREE.SphereGeometry(12,16,16),
-    new THREE.MeshBasicMaterial({
-      color:0x3399ff,
-      transparent:true,
-      opacity:0.15
-    })
-  );
+  mesh.position.copy(pos);
+  mesh.userData = {
+    name:"Planet",
+    population: Math.floor(Math.random()*1000000000)
+  };
 
-  high.add(atm);
-
-  group.add(low);
-  group.add(high);
-  high.visible = false;
-
-  group.position.copy(pos);
-  group.userData.population = Math.floor(Math.random()*1000000000);
-
-  scene.add(group);
-  planets.push({group,low,high});
+  scene.add(mesh);
+  planets.push(mesh);
 }
 
 for(let i=0;i<15;i++){
@@ -105,61 +83,76 @@ for(let i=0;i<15;i++){
   ));
 }
 
-// ===== REAL SOLAR SYSTEM =====
+// ===== FULL SOLAR SYSTEM =====
 function createSolarSystem(pos){
   let system = new THREE.Group();
   system.position.copy(pos);
   scene.add(system);
 
-  // SUN
+  let objects = {};
+
   let sun = new THREE.Mesh(
     new THREE.SphereGeometry(40,32,32),
     new THREE.MeshBasicMaterial({color:0xffcc00})
   );
+  sun.userData = {name:"Sun", population:0};
   system.add(sun);
 
   let light = new THREE.PointLight(0xffffff,3);
   system.add(light);
 
-  // EARTH
-  let earthOrbit = new THREE.Group();
-  system.add(earthOrbit);
+  function createPlanet(name,size,dist,color,pop){
+    let orbit = new THREE.Group();
+    system.add(orbit);
 
-  let earth = new THREE.Mesh(
-    new THREE.SphereGeometry(12,32,32),
-    new THREE.MeshStandardMaterial({color:0x2266ff})
+    let mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(size,32,32),
+      new THREE.MeshStandardMaterial({color})
+    );
+
+    mesh.position.x = dist;
+    mesh.userData = {name,population:pop};
+
+    orbit.add(mesh);
+    objects[name] = mesh;
+
+    return orbit;
+  }
+
+  let mercury = createPlanet("Mercury",5,70,0xaaaaaa,0);
+  let venus   = createPlanet("Venus",9,100,0xffcc88,0);
+  let earthO  = createPlanet("Earth",12,140,0x2266ff,8000000000);
+  let mars    = createPlanet("Mars",8,180,0xff5533,0);
+  let jupiter = createPlanet("Jupiter",25,260,0xffaa88,0);
+  let saturn  = createPlanet("Saturn",22,340,0xffddaa,0);
+  let uranus  = createPlanet("Uranus",18,420,0x66ccff,0);
+  let neptune = createPlanet("Neptune",18,500,0x3366ff,0);
+
+  // Moon
+  let moonOrbit = new THREE.Group();
+  objects["Earth"].add(moonOrbit);
+
+  let moon = new THREE.Mesh(
+    new THREE.SphereGeometry(4,16,16),
+    new THREE.MeshStandardMaterial({color:0xaaaaaa})
   );
-  earth.position.x = 120;
-  earthOrbit.add(earth);
-  earth.userData.population = 8000000000;
+  moon.position.x = 25;
+  moon.userData = {name:"Moon", population:0};
+  moonOrbit.add(moon);
+  objects["Moon"] = moon;
 
-  let earthAtm = new THREE.Mesh(
-    new THREE.SphereGeometry(14,32,32),
-    new THREE.MeshBasicMaterial({
-      color:0x3399ff,
-      transparent:true,
-      opacity:0.2
-    })
+  // Saturn Rings
+  let ring = new THREE.Mesh(
+    new THREE.RingGeometry(30,45,32),
+    new THREE.MeshBasicMaterial({color:0xddddaa, side:THREE.DoubleSide})
   );
-  earth.add(earthAtm);
-
-  // MARS
-  let marsOrbit = new THREE.Group();
-  system.add(marsOrbit);
-
-  let mars = new THREE.Mesh(
-    new THREE.SphereGeometry(8,32,32),
-    new THREE.MeshStandardMaterial({color:0xff5533})
-  );
-  mars.position.x = 200;
-  marsOrbit.add(mars);
-  mars.userData.population = 0;
+  ring.rotation.x = Math.PI/2;
+  objects["Saturn"].add(ring);
 
   system.userData = {
-    earthOrbit,
-    marsOrbit,
-    earth,
-    mars
+    objects,
+    orbits:[mercury,venus,earthO,mars,jupiter,saturn,uranus,neptune],
+    moonOrbit
   };
 
   return system;
@@ -172,10 +165,27 @@ let keys = {};
 document.addEventListener("keydown",e=>keys[e.key]=true);
 document.addEventListener("keyup",e=>keys[e.key]=false);
 
-let zoom = 0;
-window.addEventListener("wheel",e=>{
-  zoom += e.deltaY*0.001;
-  zoom = Math.max(-5,Math.min(5,zoom));
+// ===== CLICK TELEPORT =====
+let raycaster = new THREE.Raycaster();
+let mouse = new THREE.Vector2();
+let targetPosition = null;
+
+window.addEventListener("click",(event)=>{
+  mouse.x = (event.clientX/window.innerWidth)*2-1;
+  mouse.y = -(event.clientY/window.innerHeight)*2+1;
+
+  raycaster.setFromCamera(mouse,camera);
+
+  let objects = [...planets, ...Object.values(solarSystem.userData.objects)];
+  let intersects = raycaster.intersectObjects(objects,true);
+
+  if(intersects.length>0){
+    let obj = intersects[0].object;
+    let pos = new THREE.Vector3();
+    obj.getWorldPosition(pos);
+
+    targetPosition = pos.clone().add(new THREE.Vector3(0,0,80));
+  }
 });
 
 // ===== SAVE =====
@@ -207,68 +217,47 @@ if(keys["s"]) camera.translateZ(speed);
 if(keys["a"]) camera.translateX(-speed);
 if(keys["d"]) camera.translateX(speed);
 
-// ZOOM
-if(zoom < -2) camera.position.z = 3000;
-else if(zoom < 0) camera.position.z = 1500;
-else if(zoom < 2) camera.position.z = 500;
-else camera.position.z = 100;
-
-// STAR ROTATION
-stars.rotation.y += 0.0002;
-
-// SOLAR SYSTEM ORBITS
-solarSystem.userData.earthOrbit.rotation.y += 0.01;
-solarSystem.userData.marsOrbit.rotation.y += 0.008;
-
-// LOD + CLOSEST
-let closest = null;
-let minDist = Infinity;
-
-// RANDOM PLANETS
-planets.forEach(p=>{
-  let d = camera.position.distanceTo(p.group.position);
-
-  if(d < 200){
-    p.low.visible = false;
-    p.high.visible = true;
-  } else {
-    p.low.visible = true;
-    p.high.visible = false;
+// SMOOTH TRAVEL
+if(targetPosition){
+  camera.position.lerp(targetPosition,0.05);
+  if(camera.position.distanceTo(targetPosition)<1){
+    targetPosition=null;
   }
+}
 
-  if(d < minDist){
-    minDist = d;
-    closest = p.group;
-  }
+// ORBITS
+solarSystem.userData.orbits.forEach((o,i)=>{
+  o.rotation.y += 0.002 + i*0.0005;
 });
+solarSystem.userData.moonOrbit.rotation.y += 0.01;
 
-// EARTH + MARS
-[solarSystem.userData.earth, solarSystem.userData.mars].forEach(obj=>{
+// FIND CLOSEST OBJECT
+let closest=null;
+let minDist=Infinity;
+
+let allObjects = [...planets, ...Object.values(solarSystem.userData.objects)];
+
+allObjects.forEach(obj=>{
   let pos = obj.getWorldPosition(new THREE.Vector3());
   let d = camera.position.distanceTo(pos);
 
-  if(d < minDist){
-    minDist = d;
-    closest = obj;
+  if(d<minDist){
+    minDist=d;
+    closest=obj;
   }
 });
 
 // LABEL
 if(closest){
-  let pos = closest.getWorldPosition
-    ? closest.getWorldPosition(new THREE.Vector3())
-    : closest.position;
-
+  let pos = closest.getWorldPosition(new THREE.Vector3());
   let v = pos.project(camera);
 
-  label.style.left = ((v.x*0.5+0.5)*innerWidth)+"px";
-  label.style.top = ((-v.y*0.5+0.5)*innerHeight)+"px";
+  label.style.left=((v.x*0.5+0.5)*innerWidth)+"px";
+  label.style.top=(( -v.y*0.5+0.5)*innerHeight)+"px";
 
-  let name = "Planet";
-  if(closest === solarSystem.userData.earth) name = "Earth";
-  if(closest === solarSystem.userData.mars) name = "Mars";
-
-  label.innerHTML = name + "<br>Population: " +
+  label.innerHTML =
+    (closest.userData.name || "Planet") +
+    "<br>Population: " +
     (closest.userData.population || 0).toLocaleString();
 }
 
@@ -279,8 +268,8 @@ renderer.render(scene,camera);
 animate();
 
 // RESIZE
-window.addEventListener("resize", ()=>{
-camera.aspect = innerWidth/innerHeight;
+window.addEventListener("resize",()=>{
+camera.aspect=innerWidth/innerHeight;
 camera.updateProjectionMatrix();
 renderer.setSize(innerWidth,innerHeight);
 });
